@@ -4456,6 +4456,19 @@ Clay_RenderCommandArray Clay_EndLayout(float deltaTime) {
             .userData = context->errorHandler.userData });
     }
 
+    // Prune non exiting transitions
+    for (int i = 0; i < context->transitionDatas.length; ++i) {
+        Clay__TransitionDataInternal *data = Clay__TransitionDataInternalArray_Get(&context->transitionDatas, i);
+        Clay_LayoutElementHashMapItem *hashMapItem = Clay__GetHashMapItem(data->elementId);
+        // Transition element exited and doesn't have an exit handler defined
+        // Or, the user deleted the transition handler from one frame to the next
+        if (!data->transitionOut && (hashMapItem->generation <= context->generation || !hashMapItem->layoutElement->config.transition.handler)) {
+            Clay__TransitionDataInternalArray_RemoveSwapback(&context->transitionDatas, i);
+            i--;
+            continue;
+        }
+    }
+
     for (int i = 0; i < context->transitionDatas.length; ++i) {
         Clay__TransitionDataInternal *data = Clay__TransitionDataInternalArray_Get(&context->transitionDatas, i);
         Clay_LayoutElementHashMapItem *hashMapItem = Clay__GetHashMapItem(data->elementId);
@@ -4496,11 +4509,10 @@ Clay_RenderCommandArray Clay_EndLayout(float deltaTime) {
                     Clay__StringArray_Add(&context->layoutElementIdStrings, *Clay__StringArray_GetCheckCapacity(&context->layoutElementIdStrings, exitingElementIndex));
                     Clay__int32_tArray_Add(&context->layoutElementClipElementIds, *Clay__int32_tArray_GetCheckCapacity(&context->layoutElementClipElementIds, exitingElementIndex));
                     Clay__int32_tArray_Add(&bfsBuffer, exitingElementIndex);
-                    hashMapItem->layoutElement = data->elementThisFrame;
-                    hashMapItem->generation = context->generation + 1;
                     int32_t bufferIndex = 0;
                     while (bufferIndex < bfsBuffer.length) {
                         Clay_LayoutElement *layoutElement = Clay_LayoutElementArray_GetCheckCapacity(&context->layoutElements, Clay__int32_tArray_GetValue(&bfsBuffer, bufferIndex));
+                        Clay__AddHashMapItem(CLAY__INIT(Clay_ElementId){ layoutElement->id }, layoutElement);
                         bufferIndex++;
                         int32_t firstChildSlot = context->layoutElementChildren.length;
                         for (int j = 0; j < layoutElement->children.length; ++j) {
@@ -4517,6 +4529,7 @@ Clay_RenderCommandArray Clay_EndLayout(float deltaTime) {
                         }
                         layoutElement->children.elements = &context->layoutElementChildren.internalArray[firstChildSlot];
                     }
+                    hashMapItem->layoutElement = data->elementThisFrame;
 
                     // Reattach the inserted subtree to its previous parent if it still exists
                     // and the exiting element is not floating
@@ -4556,12 +4569,6 @@ Clay_RenderCommandArray Clay_EndLayout(float deltaTime) {
                     continue;
                 }
             }
-        // Transition element exited and doesn't have an exit handler defined
-        // Or, the user deleted the transition handler from one frame to the next
-        } else if (hashMapItem->generation <= context->generation || !hashMapItem->layoutElement->config.transition.handler) {
-            Clay__TransitionDataInternalArray_RemoveSwapback(&context->transitionDatas, i);
-            i--;
-            continue;
         }
     }
 
