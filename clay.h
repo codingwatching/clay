@@ -4512,7 +4512,11 @@ Clay_RenderCommandArray Clay_EndLayout(float deltaTime) {
                     int32_t bufferIndex = 0;
                     while (bufferIndex < bfsBuffer.length) {
                         Clay_LayoutElement *layoutElement = Clay_LayoutElementArray_GetCheckCapacity(&context->layoutElements, Clay__int32_tArray_GetValue(&bfsBuffer, bufferIndex));
-                        Clay__AddHashMapItem(CLAY__INIT(Clay_ElementId){ layoutElement->id }, layoutElement);
+                        Clay_LayoutElementHashMapItem* dfsMapItem = Clay__GetHashMapItem(layoutElement->id);
+                        // Children of exiting elements may have been moved elsewhere in the layout, this will throw a duplicate ID error if they still exist.
+                        if (dfsMapItem->generation <= context->generation) {
+                            Clay__AddHashMapItem(CLAY__INIT(Clay_ElementId){ layoutElement->id }, layoutElement);
+                        }
                         bufferIndex++;
                         int32_t firstChildSlot = context->layoutElementChildren.length;
                         for (int j = 0; j < layoutElement->children.length; ++j) {
